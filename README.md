@@ -12,12 +12,7 @@ Eigener Link-in-Bio-Dienst: mehrere Custom Domains, Seiten pro `domain/slug`, Ed
 2. **Neon anbinden:** Vercel → Projekt → *Storage → Create → Neon*. Setzt `DATABASE_URL` automatisch.
 3. **Blob anbinden:** Vercel → Projekt → *Storage → Create → Blob*. Setzt `BLOB_READ_WRITE_TOKEN` automatisch.
 4. **Restliche ENV-Variablen** setzen (siehe unten), dann *Redeploy*.
-5. **Datenbank-Tabellen anlegen** (einmalig und nach jeder Schema-Änderung), lokal gegen die Neon-DB:
-   ```bash
-   cp .env.example .env    # DATABASE_URL aus Vercel/Neon eintragen
-   npm install
-   npm run db:migrate
-   ```
+5. **Datenbank-Tabellen** werden bei jedem Deploy automatisch angelegt bzw. aktualisiert (`scripts/migrate-on-build.mjs` läuft vor `next build`). Nichts zu tun.
 6. **Skew Protection aktivieren:** Vercel → Projekt → *Settings → Advanced → Skew Protection* einschalten. Verhindert, dass Besucher während eines Deploys alte HTML-Seiten mit neuen JS-Dateien mischen (kaputte Buttons).
 7. `https://<deine-domain>/admin` öffnen, mit `ADMIN_USER`/`ADMIN_PASSWORD` anmelden.
 
