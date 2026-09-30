@@ -30,9 +30,10 @@ export async function POST(req: Request) {
 
   const name = `uploads/${randomId(16)}.webp`;
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  // Vercel Blob auth: BLOB_READ_WRITE_TOKEN, or BLOB_STORE_ID + Vercel OIDC (newer store connections).
+  if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.BLOB_STORE_ID) {
     // Local development without Blob: files go to .uploads/ and are served by app/uploads/[file].
-    if (process.env.VERCEL) return Response.json({ error: "BLOB_READ_WRITE_TOKEN fehlt" }, { status: 500 });
+    if (process.env.VERCEL) return Response.json({ error: "Blob ist nicht verbunden" }, { status: 500 });
     await mkdir(LOCAL_DIR, { recursive: true });
     await writeFile(path.join(LOCAL_DIR, path.basename(name)), webp);
     return Response.json({ url: `/${name}`, bytes: webp.length });

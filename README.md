@@ -27,7 +27,7 @@ Tipp: eine eigene Admin-Domain (z. B. `admin.meinlink.de`) anlegen und `ADMIN_HO
 | Variable | Pflicht | Bedeutung |
 |---|---|---|
 | `DATABASE_URL` | ja | Neon-Connection-String (setzt Vercel beim Verbinden) |
-| `BLOB_READ_WRITE_TOKEN` | ja | Vercel Blob (setzt Vercel beim Verbinden) |
+| `BLOB_READ_WRITE_TOKEN` oder `BLOB_STORE_ID` | ja | Vercel Blob (setzt Vercel beim Verbinden). Der Store muss **Public** sein. |
 | `ADMIN_USER`, `ADMIN_PASSWORD` | ja | Login für `/admin` (HTTP Basic) |
 | `VISITOR_SALT` | ja | Geheimer Schlüssel für die anonyme Besucher-ID. Lang und zufällig (`openssl rand -hex 32`). **Nie ändern**, sonst zählen alle Besucher ab dann als neu. |
 | `PROXYCHECK_API_KEY` | empfohlen | Key von proxycheck.io. Leer = keine VPN-Prüfung. |
