@@ -15,6 +15,13 @@
       "when": 1790918764975,
       "tag": "0001_kundenkonten",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790934528742,
+      "tag": "0002_crm_id",
+      "breakpoints": true
     }
   ]
 }

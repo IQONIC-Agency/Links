@@ -205,6 +205,10 @@ export function Editor({ initial, domains, models }: { initial: EditorPayload; d
                 <input type="text" list="ed-models" value={d.model} onChange={(e) => set("model", e.target.value)} />
                 <datalist id="ed-models">{models.map((x) => <option key={x} value={x} />)}</datalist>
               </div>
+              <div className="field">
+                <label>CRM-ID (Creator im CRM)</label>
+                <input type="text" value={d.crmId} onChange={(e) => set("crmId", e.target.value)} placeholder="aus dem CRM kopieren" />
+              </div>
             </div>
             <div className="field">
               <label>Notiz (z. B. welcher IG-Account den Link nutzt)</label>

@@ -118,6 +118,7 @@ export async function duplicatePage(form: FormData) {
         domain,
         slug,
         model: src.model,
+        crmId: src.crmId,
         notes: src.notes,
         live: false,
         deeplinkEnabled: src.deeplinkEnabled,
@@ -177,6 +178,7 @@ export type EditorPayload = {
   domain: string;
   slug: string;
   model: string;
+  crmId: string;
   notes: string;
   live: boolean;
   deeplinkEnabled: boolean;
@@ -233,6 +235,7 @@ export async function savePage(p: EditorPayload): Promise<{ ok: true; buttonIds:
         domain,
         slug,
         model: String(p.model ?? "").trim().slice(0, 80),
+        crmId: String(p.crmId ?? "").trim().slice(0, 100),
         notes: String(p.notes ?? "").slice(0, 2000),
         live: Boolean(p.live),
         deeplinkEnabled: Boolean(p.deeplinkEnabled),

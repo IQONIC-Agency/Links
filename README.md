@@ -120,6 +120,16 @@ curl -H "x-api-key: $STATS_API_KEY" "https://admin.meinlink.de/api/stats?range=c
 
 `range` = `today | yesterday | 7d | 30d | custom` (mit `from`/`to`). Ohne `page`: Summen, Models, alle Seiten. Mit `page`: Detail wie im Admin.
 
+**CRM-Anbindung:** Jede Seite hat im Editor das Feld **CRM-ID** (ID des Creators im CRM). Die API liefert alle Kunden:
+- ohne Parameter zusätzlich `tenants` (id, name) und `creators` (pro CRM-ID: Summen über alle Seiten, `page_ids`, `models`, `tenant_ids`; ein Besucher zählt pro Creator einmal),
+- mit `crm_id=<id>`: `creator` (Summen, `null` wenn unbekannt) und `daily` (Tagesverlauf).
+
+```bash
+curl -H "x-api-key: $STATS_API_KEY" "https://links-eight-wheat.vercel.app/api/stats?range=30d&crm_id=123"
+```
+
+Der Schlüssel gehört nur auf den CRM-Server, nie in den Browser.
+
 ## Lokale Entwicklung
 
 ```bash

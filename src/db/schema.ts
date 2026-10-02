@@ -130,6 +130,8 @@ export const pages = pgTable(
     slug: text("slug").notNull(),
     /** grouping key in stats (the creator/model this page belongs to) */
     model: text("model").notNull().default(""),
+    /** id of the creator in the CRM; the CRM matches stats by this, not by name */
+    crmId: text("crm_id").notNull().default(""),
     /** free text, e.g. which IG account uses this link */
     notes: text("notes").notNull().default(""),
     live: boolean("live").notNull().default(false),

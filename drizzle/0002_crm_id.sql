@@ -1,0 +1,1 @@
+ALTER TABLE "pages" ADD COLUMN "crm_id" text DEFAULT '' NOT NULL;

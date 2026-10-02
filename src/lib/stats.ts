@@ -80,6 +80,7 @@ export type PageRow = Metrics & {
   domain: string;
   slug: string;
   model: string;
+  crm_id: string;
   notes: string;
   live: boolean;
 };
@@ -95,7 +96,7 @@ export async function overview(r: Range, tenantId: number | null = null) {
   const scope = tenantId == null ? sql`true` : sql`p.tenant_id = ${tenantId}`;
   const [perPage, perModel, total] = await Promise.all([
     rows<PageRow>(sql`
-      select p.id, p.tenant_id, p.domain, p.slug, p.model, p.notes, p.live, ${METRICS}
+      select p.id, p.tenant_id, p.domain, p.slug, p.model, p.crm_id, p.notes, p.live, ${METRICS}
       from pages p left join events e on e.page_id = p.id and ${cond}
       where ${scope}
       group by p.id
@@ -153,4 +154,35 @@ export async function pageDetail(pageId: number, r: Range) {
       order by u_clicks desc`),
   ]);
   return { totals: totals[0]!, countries, devices, inApp, vpn, daily, perButton };
+}
+
+export type CreatorRow = Metrics & { crm_id: string; tenant_ids: number[]; models: string[]; page_ids: number[] };
+
+/**
+ * Stats per CRM creator (pages.crm_id), across all tenants. A visitor seen on two pages
+ * of one creator counts once. `crmId` limits it to one creator and adds the daily series.
+ */
+export async function creatorStats(r: Range, crmId?: string) {
+  const cond = rangeCond(r);
+  const only = crmId ? sql`p.crm_id = ${crmId}` : sql`p.crm_id <> ''`;
+  const [creators, daily] = await Promise.all([
+    rows<CreatorRow>(sql`
+      select p.crm_id,
+        array_agg(distinct p.tenant_id) as tenant_ids,
+        array_agg(distinct p.model) as models,
+        array_agg(distinct p.id) as page_ids,
+        ${METRICS}
+      from pages p left join events e on e.page_id = p.id and ${cond}
+      where ${only}
+      group by p.crm_id
+      order by p.crm_id`),
+    crmId
+      ? rows<Metrics & { day: string }>(sql`
+          select to_char(date_trunc('day', e.created_at at time zone ${tz()}), 'YYYY-MM-DD') as day, ${METRICS}
+          from events e join pages p on p.id = e.page_id
+          where ${only} and ${cond}
+          group by 1 order by 1`)
+      : Promise.resolve(null),
+  ]);
+  return { creators, daily };
 }

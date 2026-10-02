@@ -26,6 +26,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
         domain: page.domain,
         slug: page.slug,
         model: page.model,
+        crmId: page.crmId,
         notes: page.notes,
         live: page.live,
         deeplinkEnabled: page.deeplinkEnabled,
