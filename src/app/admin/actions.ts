@@ -13,12 +13,13 @@ import {
   type FontKey,
   type PageConfig,
 } from "@/db";
+import { domainForUser, pageForUser, requireUser, type CurrentUser } from "@/lib/auth";
 import { FONTS } from "@/lib/fonts";
 import { normalizeHost, RESERVED_SLUGS, SLUG_RE } from "@/lib/host";
 import { randomId } from "@/lib/ids";
 
-// Every action here is only reachable under /admin, which the middleware
-// protects with HTTP Basic auth.
+// Every action checks the logged-in user and its tenant itself. The middleware
+// only proves that *some* valid session exists.
 
 function cleanSlug(raw: unknown): string {
   const slug = String(raw ?? "").trim().toLowerCase().replace(/^\/+/, "");
@@ -63,6 +64,13 @@ function cleanImage(raw: unknown): string | undefined {
   return undefined;
 }
 
+/** Domain must be registered and belong to a tenant the user can access. Returns the tenant. */
+async function usableDomain(u: CurrentUser, domain: string): Promise<number> {
+  const d = await domainForUser(u, domain);
+  if (!d) throw new Error(`Die Domain ${domain} ist nicht in deinem Konto. Erst unter „Domains“ hinzufügen.`);
+  return d.tenantId;
+}
+
 function isUniqueViolation(err: unknown): boolean {
   const e = err as { code?: string; cause?: { code?: string } };
   return e?.code === "23505" || e?.cause?.code === "23505";
@@ -73,14 +81,16 @@ function back(path: string, error: string): never {
 }
 
 export async function createPage(form: FormData) {
+  const u = await requireUser();
   let id: number;
   try {
     const domain = cleanDomain(form.get("domain"));
     const slug = cleanSlug(form.get("slug"));
-    const model = String(form.get("model") ?? "").trim();
+    const model = String(form.get("model") ?? "").trim().slice(0, 80);
+    const tenantId = await usableDomain(u, domain);
     const [row] = await db()
       .insert(pages)
-      .values({ domain, slug, model, config: defaultPageConfig })
+      .values({ tenantId, domain, slug, model, config: defaultPageConfig })
       .returning({ id: pages.id });
     id = row!.id;
   } catch (err) {
@@ -91,17 +101,20 @@ export async function createPage(form: FormData) {
 
 /** Copies a page with all buttons (new random button ids). The copy starts offline. */
 export async function duplicatePage(form: FormData) {
+  const u = await requireUser();
   const sourceId = Number(form.get("id"));
   let newId: number;
   try {
-    const [src] = await db().select().from(pages).where(eq(pages.id, sourceId)).limit(1);
+    const src = await pageForUser(u, sourceId);
     if (!src) throw new Error("Seite nicht gefunden.");
     const slug = cleanSlug(form.get("slug"));
     const domainRaw = String(form.get("domain") ?? "").trim();
     const domain = domainRaw ? cleanDomain(domainRaw) : src.domain;
+    const tenantId = await usableDomain(u, domain);
     const [row] = await db()
       .insert(pages)
       .values({
+        tenantId,
         domain,
         slug,
         model: src.model,
@@ -128,10 +141,11 @@ export async function duplicatePage(form: FormData) {
 }
 
 export async function toggleFlag(form: FormData) {
+  const u = await requireUser();
   const id = Number(form.get("id"));
   const flag = String(form.get("flag"));
   const col = flag === "live" ? pages.live : flag === "deeplink" ? pages.deeplinkEnabled : null;
-  if (!col || !Number.isInteger(id)) return;
+  if (!col || !(await pageForUser(u, id))) return;
   await db()
     .update(pages)
     .set({ [flag === "live" ? "live" : "deeplinkEnabled"]: sql`not ${col}`, updatedAt: new Date() })
@@ -140,8 +154,9 @@ export async function toggleFlag(form: FormData) {
 }
 
 export async function deletePage(form: FormData) {
+  const u = await requireUser();
   const id = Number(form.get("id"));
-  if (!Number.isInteger(id)) return;
+  if (!(await pageForUser(u, id))) return;
   // Events are kept on purpose (history); they just no longer show up per page.
   await db().delete(pages).where(eq(pages.id, id));
   revalidatePath("/admin");
@@ -172,9 +187,13 @@ export type EditorPayload = {
 };
 
 export async function savePage(p: EditorPayload): Promise<{ ok: true; buttonIds: string[] } | { ok: false; error: string }> {
+  const u = await requireUser();
   try {
+    if (!(await pageForUser(u, Number(p.id)))) throw new Error("Seite nicht gefunden.");
     const domain = cleanDomain(p.domain);
     const slug = cleanSlug(p.slug);
+    // Moving a page to another domain also moves it to that domain's tenant (superadmin only can cross tenants).
+    const tenantId = await usableDomain(u, domain);
     const countries = [
       ...new Set(p.blockedCountries.map((c) => c.trim().toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c))),
     ];
@@ -210,13 +229,14 @@ export async function savePage(p: EditorPayload): Promise<{ ok: true; buttonIds:
     await db()
       .update(pages)
       .set({
+        tenantId,
         domain,
         slug,
-        model: p.model.trim().slice(0, 80),
-        notes: p.notes.slice(0, 2000),
-        live: p.live,
-        deeplinkEnabled: p.deeplinkEnabled,
-        blockVpn: p.blockVpn,
+        model: String(p.model ?? "").trim().slice(0, 80),
+        notes: String(p.notes ?? "").slice(0, 2000),
+        live: Boolean(p.live),
+        deeplinkEnabled: Boolean(p.deeplinkEnabled),
+        blockVpn: Boolean(p.blockVpn),
         blockedCountries: countries,
         config,
         updatedAt: new Date(),

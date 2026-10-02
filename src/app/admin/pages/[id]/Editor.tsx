@@ -190,8 +190,11 @@ export function Editor({ initial, domains, models }: { initial: EditorPayload; d
             <div className="row">
               <div className="field">
                 <label>Domain</label>
-                <input type="text" list="ed-domains" value={d.domain} onChange={(e) => set("domain", e.target.value)} />
-                <datalist id="ed-domains">{domains.map((x) => <option key={x} value={x} />)}</datalist>
+                <select value={d.domain} onChange={(e) => set("domain", e.target.value)}>
+                  {(domains.includes(d.domain) ? domains : [d.domain, ...domains]).map((x) => (
+                    <option key={x} value={x}>{x}</option>
+                  ))}
+                </select>
               </div>
               <div className="field">
                 <label>Slug</label>

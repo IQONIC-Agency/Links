@@ -1,7 +1,6 @@
-import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db, pages } from "@/db";
+import { pageForUser, requireUser } from "@/lib/auth";
 import { ctr, pageDetail, parseRange, type Breakdown } from "@/lib/stats";
 import { n, pct, RangeFilter } from "../RangeFilter";
 
@@ -58,7 +57,7 @@ export default async function StatsDetail({
 }) {
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
-  const [page] = await db().select().from(pages).where(eq(pages.id, id)).limit(1);
+  const page = await pageForUser(await requireUser(), id);
   if (!page) notFound();
   const range = parseRange(await searchParams);
   const d = await pageDetail(id, range);

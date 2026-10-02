@@ -8,16 +8,19 @@ const LABELS = [
   ["30d", "30 Tage"],
 ] as const;
 
-export function RangeFilter({ basePath, range }: { basePath: string; range: Range }) {
+/** `tenant` keeps the superadmin's customer filter when switching ranges. */
+export function RangeFilter({ basePath, range, tenant }: { basePath: string; range: Range; tenant?: number | null }) {
+  const t = tenant ? `&t=${tenant}` : "";
   return (
     <div className="adm-filter">
       {LABELS.map(([key, label]) => (
-        <Link key={key} className={`btn ${range.key === key ? "active" : ""}`} href={`${basePath}?range=${key}`}>
+        <Link key={key} className={`btn ${range.key === key ? "active" : ""}`} href={`${basePath}?range=${key}${t}`}>
           {label}
         </Link>
       ))}
       <form method="get" action={basePath} style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <input type="hidden" name="range" value="custom" />
+        {tenant ? <input type="hidden" name="t" value={tenant} /> : null}
         <input type="date" name="from" defaultValue={range.from} required style={{ width: 150 }} />
         <span className="muted">bis</span>
         <input type="date" name="to" defaultValue={range.to} required style={{ width: 150 }} />

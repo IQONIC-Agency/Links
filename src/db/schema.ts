@@ -61,12 +61,72 @@ export const defaultButtonStyle: ButtonStyle = {
   radius: 14,
 };
 
+/** A customer account. Every page and domain belongs to exactly one tenant. */
+export const tenants = pgTable("tenants", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type Role = "superadmin" | "member";
+
+export const users = pgTable(
+  "users",
+  {
+    id: serial("id").primaryKey(),
+    /** lower case */
+    email: text("email").notNull(),
+    name: text("name").notNull().default(""),
+    /** scrypt$<salt b64>$<hash b64> */
+    passwordHash: text("password_hash").notNull(),
+    /** superadmin sees every tenant; member only its own */
+    role: text("role").$type<Role>().notNull().default("member"),
+    /** null only for superadmins */
+    tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: "restrict" }),
+    /** bumped on password change / "log out everywhere"; old session cookies stop working */
+    sessionVersion: integer("session_version").notNull().default(1),
+    disabled: boolean("disabled").notNull().default(false),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("users_email_uq").on(t.email)],
+);
+
+/** Custom domains, registered with the Vercel project from the admin. */
+export const domains = pgTable("domains", {
+  /** normalized host without www. and port */
+  domain: text("domain").primaryKey(),
+  tenantId: integer("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "restrict" }),
+  /** last time Vercel reported a valid DNS configuration */
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Failed logins, for throttling (keyed by email and by IP hash). */
+export const loginFailures = pgTable(
+  "login_failures",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    key: text("key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("login_failures_key_time_idx").on(t.key, t.createdAt)],
+);
+
 export const pages = pgTable(
   "pages",
   {
     id: serial("id").primaryKey(),
+    /** always the tenant of `domain` */
+    tenantId: integer("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
     /** normalized host without www. and port, e.g. "example.com" */
-    domain: text("domain").notNull(),
+    domain: text("domain")
+      .notNull()
+      .references(() => domains.domain, { onDelete: "restrict", onUpdate: "cascade" }),
     slug: text("slug").notNull(),
     /** grouping key in stats (the creator/model this page belongs to) */
     model: text("model").notNull().default(""),
@@ -84,7 +144,7 @@ export const pages = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("pages_domain_slug_uq").on(t.domain, t.slug)],
+  (t) => [uniqueIndex("pages_domain_slug_uq").on(t.domain, t.slug), index("pages_tenant_idx").on(t.tenantId)],
 );
 
 export const buttons = pgTable(
@@ -142,4 +202,6 @@ export const ipChecks = pgTable("ip_checks", {
 });
 
 export type Page = typeof pages.$inferSelect;
+export type User = typeof users.$inferSelect;
+export type Domain = typeof domains.$inferSelect;
 export type Button = typeof buttons.$inferSelect;

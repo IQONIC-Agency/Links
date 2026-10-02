@@ -1,15 +1,23 @@
 import { asc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
-import { buttons, db, pages } from "@/db";
+import { buttons, db, domains, pages } from "@/db";
+import { isSuperadmin, pageForUser, requireUser } from "@/lib/auth";
 import { Editor } from "./Editor";
 
 export default async function EditPage({ params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
-  const [page] = await db().select().from(pages).where(eq(pages.id, id)).limit(1);
+  const user = await requireUser();
+  const page = await pageForUser(user, id);
   if (!page) notFound();
   const btns = await db().select().from(buttons).where(eq(buttons.pageId, id)).orderBy(asc(buttons.position));
-  const all = await db().select({ domain: pages.domain, model: pages.model }).from(pages);
+  // Domains and models of this page's tenant only (a superadmin may also move it to any domain).
+  const domainRows = await db()
+    .select({ domain: domains.domain })
+    .from(domains)
+    .where(isSuperadmin(user) ? undefined : eq(domains.tenantId, page.tenantId))
+    .orderBy(asc(domains.domain));
+  const modelRows = await db().selectDistinct({ model: pages.model }).from(pages).where(eq(pages.tenantId, page.tenantId));
 
   return (
     <Editor
@@ -26,8 +34,8 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
         config: page.config,
         buttons: btns.map((b) => ({ id: b.id, label: b.label, url: b.url, ageGate: b.ageGate, deeplink: b.deeplink, style: b.style })),
       }}
-      domains={[...new Set(all.map((a) => a.domain))]}
-      models={[...new Set(all.map((a) => a.model).filter(Boolean))]}
+      domains={domainRows.map((d) => d.domain)}
+      models={modelRows.map((m) => m.model).filter(Boolean)}
     />
   );
 }

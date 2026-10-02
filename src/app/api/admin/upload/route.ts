@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { put } from "@vercel/blob";
 import sharp from "sharp";
+import { getCurrentUser } from "@/lib/auth";
 import { randomId } from "@/lib/ids";
 
 export const runtime = "nodejs";
@@ -10,8 +11,8 @@ export const dynamic = "force-dynamic";
 const LOCAL_DIR = path.join(process.cwd(), ".uploads");
 const MAX_INPUT_BYTES = 4.5 * 1024 * 1024; // Vercel function body limit
 
-/** Protected by the /api/admin/* Basic-auth check in middleware. */
 export async function POST(req: Request) {
+  if (!(await getCurrentUser())) return Response.json({ error: "Nicht angemeldet" }, { status: 401 });
   const form = await req.formData();
   const file = form.get("file");
   if (!(file instanceof Blob)) return Response.json({ error: "Keine Datei" }, { status: 400 });

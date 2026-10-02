@@ -14,11 +14,24 @@ Eigener Link-in-Bio-Dienst: mehrere Custom Domains, Seiten pro `domain/slug`, Ed
 4. **Restliche ENV-Variablen** setzen (siehe unten), dann *Redeploy*.
 5. **Datenbank-Tabellen** werden bei jedem Deploy automatisch angelegt bzw. aktualisiert (`scripts/migrate-on-build.mjs` läuft vor `next build`). Nichts zu tun.
 6. **Skew Protection aktivieren:** Vercel → Projekt → *Settings → Advanced → Skew Protection* einschalten. Verhindert, dass Besucher während eines Deploys alte HTML-Seiten mit neuen JS-Dateien mischen (kaputte Buttons).
-7. `https://<deine-domain>/admin` öffnen, mit `ADMIN_USER`/`ADMIN_PASSWORD` anmelden.
+7. `https://<deine-domain>/admin` öffnen, mit `ADMIN_USER`/`ADMIN_PASSWORD` anmelden (Haupt-Admin).
+
+### Kunden und Logins
+
+- **Haupt-Admin** = `ADMIN_USER`/`ADMIN_PASSWORD` aus den ENV-Variablen. Sieht alles, legt unter *Kunden & Logins* Kunden und Logins an. Weitere Haupt-Admins sind als Login mit „Haupt-Admin (sieht alles)“ möglich.
+- **Kunde** = ein Konto mit eigenen Domains, Seiten und Stats. Logins eines Kunden sehen nur dessen Daten. Jede Aktion prüft das serverseitig, nicht nur die Oberfläche.
+- Login per E-Mail + Passwort (scrypt-Hash), Session-Cookie 14 Tage, signiert mit `AUTH_SECRET` (sonst abgeleitet aus `VISITOR_SALT`). Nach 10 Fehlversuchen pro E-Mail oder IP ist 15 Minuten Pause.
+- Passwort ändern, Sperren oder „Auf allen Geräten abmelden“ beendet sofort alle alten Sessions. Haupt-Login: `ADMIN_PASSWORD` in Vercel ändern und neu deployen.
 
 ### Custom Domains
 
-Vercel → Projekt → *Settings → Domains* → jede Domain hinzufügen und die angezeigten DNS-Einträge beim Domain-Anbieter setzen. Im Admin legst du dann Seiten als `domain + slug` an, z. B. `meinlink.de/anna`. `www.` und Port werden ignoriert, `www.meinlink.de/anna` = `meinlink.de/anna`.
+Kunden tragen ihre Domain selbst unter *Domains* ein. Der Server meldet sie über die Vercel-API am Projekt an und zeigt die DNS-Einträge, die der Kunde bei seinem Anbieter setzen muss: ein `A`-Eintrag `@` auf Vercels allgemeine IP (nicht den projektspezifischen CNAME, der alle Kundendomains als zusammengehörig verraten würde), plus bei Bedarf ein `TXT`-Eintrag zur Bestätigung. Bei Cloudflare den Proxy aus (graue Wolke). „Prüfen“ fragt Vercel erneut.
+
+Ohne `VERCEL_TOKEN`/`VERCEL_PROJECT_ID` werden Domains nur gespeichert und müssen von Hand in Vercel → *Settings → Domains* eingetragen werden.
+
+Seiten gibt es nur auf Domains des eigenen Kontos, als `domain + slug`, z. B. `meinlink.de/anna`. `www.` und Port werden ignoriert, `www.meinlink.de/anna` = `meinlink.de/anna`.
+
+**Sicherheit des Vercel-Tokens:** Vercel-Tokens gelten für ein ganzes Team. Liegt das Projekt in einem Team mit anderen Projekten, kann der Token technisch auch diese ändern. Für saubere Trennung das Projekt in ein eigenes Vercel-Team verschieben und den Token nur für dieses Team erstellen.
 
 Tipp: eine eigene Admin-Domain (z. B. `admin.meinlink.de`) anlegen und `ADMIN_HOST` darauf setzen. Dann ist `/admin` auf den öffentlichen Link-Domains gar nicht erreichbar.
 
@@ -28,7 +41,11 @@ Tipp: eine eigene Admin-Domain (z. B. `admin.meinlink.de`) anlegen und `ADMIN_HO
 |---|---|---|
 | `DATABASE_URL` | ja | Neon-Connection-String (setzt Vercel beim Verbinden) |
 | `BLOB_READ_WRITE_TOKEN` oder `BLOB_STORE_ID` | ja | Vercel Blob (setzt Vercel beim Verbinden). Der Store muss **Public** sein. |
-| `ADMIN_USER`, `ADMIN_PASSWORD` | ja | Login für `/admin` (HTTP Basic) |
+| `ADMIN_USER`, `ADMIN_PASSWORD` | ja | Haupt-Admin-Login für `/admin` |
+| `AUTH_SECRET` | nein | Schlüssel für Login-Cookies. Leer = abgeleitet aus `VISITOR_SALT`. Ändern meldet alle ab. |
+| `VERCEL_TOKEN` | empfohlen | Vercel-Token, damit Kunden Domains selbst anmelden können. Nur für das Team dieses Projekts erstellen. |
+| `VERCEL_PROJECT_ID` | mit Token | Vercel → Projekt → *Settings → General → Project ID* |
+| `VERCEL_TEAM_ID` | wenn Team | Vercel → Team → *Settings → General → Team ID* |
 | `VISITOR_SALT` | ja | Geheimer Schlüssel für die anonyme Besucher-ID. Lang und zufällig (`openssl rand -hex 32`). **Nie ändern**, sonst zählen alle Besucher ab dann als neu. |
 | `PROXYCHECK_API_KEY` | empfohlen | Key von proxycheck.io. Leer = keine VPN-Prüfung. |
 | `PROXYCHECK_DISABLED` | nein | `1` = Kill-Switch, proxycheck.io wird gar nicht mehr gefragt |
@@ -133,5 +150,5 @@ Schema ändern: `src/db/schema.ts` anpassen → `npm run db:generate` → neue S
 
 ## Später
 
-- **Login:** HTTP Basic ist bewusst einfach. Upgrade auf Auth.js (NextAuth) mit E-Mail-Magic-Link oder Google, sobald mehrere Personen Zugriff brauchen: Middleware-Check durch `auth()` ersetzen.
+- **CRM-Anmeldung:** Login über das CRM (signierter Kurzzeit-Link), damit Mitarbeiter keinen zweiten Login brauchen.
 - Rate-Limit auf `/api/e`, falls jemand gezielt Fake-Events schickt.

@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { ctr, overview, parseRange, type Metrics, type PageRow } from "@/lib/stats";
+import { isSuperadmin, requireUser } from "@/lib/auth";
+import { ctr, modelKey, overview, parseRange, type Metrics, type PageRow } from "@/lib/stats";
+import { pickTenant, tenantNames, TenantFilter } from "../tenants";
 import { n, pct, RangeFilter } from "./RangeFilter";
 
 function Cells({ m }: { m: Metrics }) {
@@ -20,23 +22,30 @@ function Cells({ m }: { m: Metrics }) {
 export default async function StatsOverview({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ range?: string; from?: string; to?: string; t?: string }>;
 }) {
-  const range = parseRange(await searchParams);
-  const { perPage, perModel, total } = await overview(range);
+  const sp = await searchParams;
+  const user = await requireUser();
+  const tenant = pickTenant(user, sp.t);
+  const range = parseRange(sp);
+  const { perPage, perModel, total } = await overview(range, tenant);
+  const names = isSuperadmin(user) ? await tenantNames() : null;
 
   const groups = new Map<string, PageRow[]>();
   for (const row of perPage) {
-    const list = groups.get(row.model) ?? [];
+    const key = modelKey(row.tenant_id, row.model);
+    const list = groups.get(key) ?? [];
     list.push(row);
-    groups.set(row.model, list);
+    groups.set(key, list);
   }
-  const qs = range.key === "custom" ? `?range=custom&from=${range.from}&to=${range.to}` : `?range=${range.key}`;
+  const rangeQs = range.key === "custom" ? `range=custom&from=${range.from}&to=${range.to}` : `range=${range.key}`;
+  const qs = `?${rangeQs}`;
 
   return (
     <>
       <h1>Stats</h1>
-      <RangeFilter basePath="/admin/stats" range={range} />
+      {names ? <TenantFilter basePath="/admin/stats" names={names} current={tenant} extra={rangeQs} /> : null}
+      <RangeFilter basePath="/admin/stats" range={range} tenant={tenant} />
       <div className="adm-kpis">
         <div className="adm-kpi">
           <div className="v">{n(total.u_views)}</div>
@@ -69,8 +78,15 @@ export default async function StatsOverview({
           </tr>
         </thead>
         <tbody>
-          {[...groups.entries()].map(([model, rows]) => (
-            <GroupRows key={model} model={model} rows={rows} sum={perModel.get(model)!} qs={qs} />
+          {[...groups.entries()].map(([key, rows]) => (
+            <GroupRows
+              key={key}
+              model={rows[0]!.model}
+              customer={names && tenant == null ? names.get(rows[0]!.tenant_id) : undefined}
+              rows={rows}
+              sum={perModel.get(key)!}
+              qs={qs}
+            />
           ))}
         </tbody>
       </table>
@@ -82,11 +98,26 @@ export default async function StatsOverview({
   );
 }
 
-function GroupRows({ model, rows, sum, qs }: { model: string; rows: PageRow[]; sum: Metrics; qs: string }) {
+function GroupRows({
+  model,
+  customer,
+  rows,
+  sum,
+  qs,
+}: {
+  model: string;
+  customer?: string;
+  rows: PageRow[];
+  sum: Metrics;
+  qs: string;
+}) {
   return (
     <>
       <tr className="adm-group">
-        <td colSpan={2}>{model || "(ohne Model)"}</td>
+        <td colSpan={2}>
+          {model || "(ohne Model)"}
+          {customer ? <span className="muted" style={{ fontWeight: 400 }}> · {customer}</span> : null}
+        </td>
         <Cells m={sum} />
       </tr>
       {rows.map((r) => (

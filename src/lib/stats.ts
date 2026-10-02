@@ -76,6 +76,7 @@ async function rows<T>(q: SQL): Promise<T[]> {
 
 export type PageRow = Metrics & {
   id: number;
+  tenant_id: number;
   domain: string;
   slug: string;
   model: string;
@@ -83,22 +84,34 @@ export type PageRow = Metrics & {
   live: boolean;
 };
 
-export async function overview(r: Range) {
+/** Key of a model group: the same model name in two tenants is two groups. */
+export function modelKey(tenantId: number, model: string): string {
+  return `${tenantId}:${model}`;
+}
+
+/** tenantId null = all tenants (superadmin / stats API). */
+export async function overview(r: Range, tenantId: number | null = null) {
   const cond = rangeCond(r);
+  const scope = tenantId == null ? sql`true` : sql`p.tenant_id = ${tenantId}`;
   const [perPage, perModel, total] = await Promise.all([
     rows<PageRow>(sql`
-      select p.id, p.domain, p.slug, p.model, p.notes, p.live, ${METRICS}
+      select p.id, p.tenant_id, p.domain, p.slug, p.model, p.notes, p.live, ${METRICS}
       from pages p left join events e on e.page_id = p.id and ${cond}
+      where ${scope}
       group by p.id
-      order by lower(p.model), p.domain, p.slug`),
+      order by p.tenant_id, lower(p.model), p.domain, p.slug`),
     // Separate query: a visitor seen on two pages of one model counts once for the model.
-    rows<Metrics & { model: string }>(sql`
-      select p.model, ${METRICS}
+    rows<Metrics & { tenant_id: number; model: string }>(sql`
+      select p.tenant_id, p.model, ${METRICS}
       from pages p left join events e on e.page_id = p.id and ${cond}
-      group by p.model`),
-    rows<Metrics>(sql`select ${METRICS} from events e where ${cond}`),
+      where ${scope}
+      group by p.tenant_id, p.model`),
+    // Events of deleted pages only show up in the all-tenants total.
+    tenantId == null
+      ? rows<Metrics>(sql`select ${METRICS} from events e where ${cond}`)
+      : rows<Metrics>(sql`select ${METRICS} from events e join pages p on p.id = e.page_id where ${scope} and ${cond}`),
   ]);
-  return { perPage, perModel: new Map(perModel.map((m) => [m.model, m])), total: total[0]! };
+  return { perPage, perModel: new Map(perModel.map((m) => [modelKey(m.tenant_id, m.model), m])), total: total[0]! };
 }
 
 export type Breakdown = { key: string | null; u_views: number; u_clicks: number; u_confirms: number; views: number; clicks: number };
