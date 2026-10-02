@@ -10,8 +10,7 @@ export function NeutralView() {
 export function BlockedView() {
   return (
     <main className="lh-simple">
-      <p>Diese Seite ist in deiner Region nicht verfügbar.</p>
-      <p className="lh-simple-sub">This page is not available in your region.</p>
+      <p>This page is not available in your region.</p>
     </main>
   );
 }
