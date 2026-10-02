@@ -40,10 +40,15 @@ export async function POST(req: Request) {
     return Response.json({ url: `/${name}`, bytes: webp.length });
   }
 
-  const blob = await put(name, webp, {
-    access: "public",
-    contentType: "image/webp",
-    cacheControlMaxAge: 60 * 60 * 24 * 365,
-  });
-  return Response.json({ url: blob.url, bytes: webp.length });
+  try {
+    const blob = await put(name, webp, {
+      access: "public",
+      contentType: "image/webp",
+      cacheControlMaxAge: 60 * 60 * 24 * 365,
+    });
+    return Response.json({ url: blob.url, bytes: webp.length });
+  } catch (e) {
+    console.error("blob upload failed", e);
+    return Response.json({ error: `Speichern fehlgeschlagen: ${(e as Error).message}` }, { status: 502 });
+  }
 }

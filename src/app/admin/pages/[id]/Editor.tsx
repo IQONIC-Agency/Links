@@ -32,7 +32,7 @@ function ImageInput({ value, onChange, label }: { value?: string; onChange: (url
       const fd = new FormData();
       fd.append("file", await shrinkIfNeeded(file), file.name);
       const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
-      const json = (await res.json()) as { url?: string; error?: string };
+      const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
       if (!res.ok || !json.url) throw new Error(json.error || `Upload fehlgeschlagen (${res.status})`);
       onChange(json.url);
     } catch (e) {
